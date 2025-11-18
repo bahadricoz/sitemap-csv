@@ -13,6 +13,7 @@ import csv
 import ssl
 import sys
 import urllib.request
+import urllib.parse
 from typing import Iterable, Set
 
 from xml.etree import ElementTree as ET
@@ -73,11 +74,30 @@ def parse_sitemap(url: str, seen_xml: Set[str], emit: Set[str], cert_file: str |
         raise ValueError(f"Unsupported sitemap root tag: {root.tag}")
 
 
-def collect_urls(root_sitemap: str, cert_file: str | None = None) -> Set[str]:
+def _strip_domain(url: str) -> str:
+    parsed = urllib.parse.urlparse(url)
+    authority = parsed.netloc
+    if not authority:
+        return url
+    path = parsed.path or "/"
+    params = f";{parsed.params}" if parsed.params else ""
+    query = f"?{parsed.query}" if parsed.query else ""
+    fragment = f"#{parsed.fragment}" if parsed.fragment else ""
+    return f"{path}{params}{query}{fragment}"
+
+
+def collect_urls(
+    root_sitemap: str,
+    cert_file: str | None = None,
+    strip_domain: bool = False,
+) -> Set[str]:
     """Return every (non-XML) URL mentioned inside the sitemap hierarchy."""
     seen_xml: Set[str] = set()
     collected: Set[str] = set()
     parse_sitemap(root_sitemap, seen_xml, collected, cert_file=cert_file)
+    if strip_domain:
+        return {_strip_domain(url) for url in collected}
+    return collected
     return collected
 
 
@@ -104,6 +124,11 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Optional CA bundle (defaults to system certificates).",
     )
+    parser.add_argument(
+        "--strip-domain",
+        action="store_true",
+        help="Emit paths only (strip the scheme+host from each URL).",
+    )
     return parser.parse_args()
 
 
@@ -111,7 +136,11 @@ def main() -> None:
     args = parse_args()
 
     try:
-        collected = collect_urls(args.sitemap, cert_file=args.cert_file)
+        collected = collect_urls(
+            args.sitemap,
+            cert_file=args.cert_file,
+            strip_domain=args.strip_domain,
+        )
     except Exception as err:  # pragma: no cover
         print(f"Failed to parse sitemap: {err}", file=sys.stderr)
         sys.exit(1)

@@ -34,6 +34,7 @@ with st.form("sitemap_form"):
     sitemap_url = st.text_input("Root sitemap URL", DEFAULT_SITEMAP)
     output_name = st.text_input("CSV file name", "sitemap_links.csv")
     use_certifi = st.checkbox("Use certifi CA bundle (recommended)", value=True)
+    strip_domain = st.checkbox("Strip scheme+host (keep only path/query/fragment)", value=True)
     submitted = st.form_submit_button("Collect URLs")
 
 if submitted:
@@ -44,7 +45,11 @@ if submitted:
         cert_file = certifi.where() if use_certifi else None
         try:
             with st.spinner("Collecting URLs…"):
-                urls = collect_urls(sitemap_url, cert_file=cert_file)
+                urls = collect_urls(
+                    sitemap_url,
+                    cert_file=cert_file,
+                    strip_domain=strip_domain,
+                )
         except Exception as exc:
             st.error(f"Failed to collect URLs: {exc}")
         else:

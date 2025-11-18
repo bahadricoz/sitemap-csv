@@ -17,6 +17,7 @@ SSL_CERT_FILE=$(python3 -m certifi) python3 sitemap_to_csv.py https://paen.com/s
 ```
 
 You can optionally pass `--cert-file` instead of relying on the environment variable.
+Add `--strip-domain` if you want every URL to be emitted without the scheme+host (e.g. `/blog/test-blog` instead of `https://paen.com/blog/test-blog`).
 
 ## Streamlit interface
 
@@ -35,6 +36,7 @@ You can optionally pass `--cert-file` instead of relying on the environment vari
 3. Enter a sitemap URL, tweak the CSV file name, and click **Collect URLs**. A download button appears when the crawl completes.
 
 To publish a permanent link, deploy the repo to [Streamlit Community Cloud](https://streamlit.io/cloud) (or any Streamlit-compatible host) and set the command to `streamlit run streamlit_app.py`.
+The UI includes a checkbox to strip the host portion of every URL (e.g. `https://alandı.com/blog/test-blog` becomes `/blog/test-blog`), which matches the “relative links only” behavior you requested.
 
 ## GitHub Actions
 
