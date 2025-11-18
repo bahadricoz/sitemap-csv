@@ -26,7 +26,15 @@ def fetch_xml(url: str, cert_file: str | None = None) -> bytes:
     context = ssl.create_default_context()
     if cert_file:
         context = ssl.create_default_context(cafile=cert_file)
-    with urllib.request.urlopen(url, context=context) as response:
+
+    req = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+        },
+    )
+    with urllib.request.urlopen(req, context=context) as response:
         return response.read()
 
 
