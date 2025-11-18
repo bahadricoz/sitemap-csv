@@ -55,15 +55,16 @@ def parse_sitemap(url: str, seen_xml: Set[str], emit: Set[str], cert_file: str |
 
     if tag == "sitemapindex":
         for sitemap in root.findall("sm:sitemap", NS):
-            loc = sitemap.findtext("sm:loc", ".//", NS)
-            if loc:
-                parse_sitemap(loc.strip(), seen_xml, emit, cert_file=cert_file)
+            loc_element = sitemap.find("sm:loc", NS)
+            if loc_element is None or not loc_element.text:
+                continue
+            parse_sitemap(loc_element.text.strip(), seen_xml, emit, cert_file=cert_file)
     elif tag == "urlset":
         for url_entry in root.findall("sm:url", NS):
-            loc = url_entry.findtext("sm:loc")
-            if not loc:
+            loc_element = url_entry.find("sm:loc", NS)
+            if loc_element is None or not loc_element.text:
                 continue
-            loc = loc.strip()
+            loc = loc_element.text.strip()
             if is_xml_link(loc):
                 parse_sitemap(loc, seen_xml, emit, cert_file=cert_file)
             else:
