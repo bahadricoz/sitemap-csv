@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Download every link from a sitemap (IDing nested XML sitemaps) and write them to CSV.
+Download every link from a sitemap (including nested sitemap.xml targets) and write them to CSV.
 
 Usage:
     python sitemap_to_csv.py https://paen.com/sitemap.xml --output ./paen-links.csv
@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import ssl
 import sys
 import urllib.request
 from typing import Iterable, Set
@@ -20,9 +21,12 @@ XML_NAMESPACE = "http://www.sitemaps.org/schemas/sitemap/0.9"
 NS = {"sm": XML_NAMESPACE}
 
 
-def fetch_xml(url: str) -> bytes:
+def fetch_xml(url: str, cert_file: str | None = None) -> bytes:
     """Retrieve the raw bytes of an XML document."""
-    with urllib.request.urlopen(url) as response:
+    context = ssl.create_default_context()
+    if cert_file:
+        context = ssl.create_default_context(cafile=cert_file)
+    with urllib.request.urlopen(url, context=context) as response:
         return response.read()
 
 
@@ -31,13 +35,13 @@ def is_xml_link(url: str) -> bool:
     return url.lower().rstrip("/").endswith(".xml")
 
 
-def parse_sitemap(url: str, seen_xml: Set[str], emit: Set[str]) -> None:
+def parse_sitemap(url: str, seen_xml: Set[str], emit: Set[str], cert_file: str | None = None) -> None:
     """Recursively walk a sitemap, adding URL targets into the emit set."""
     if url in seen_xml:
         return
     seen_xml.add(url)
 
-    data = fetch_xml(url)
+    data = fetch_xml(url, cert_file)
     root = ET.fromstring(data)
     tag = root.tag.split("}", 1)[-1]
 
@@ -45,7 +49,7 @@ def parse_sitemap(url: str, seen_xml: Set[str], emit: Set[str]) -> None:
         for sitemap in root.findall("sm:sitemap", NS):
             loc = sitemap.findtext("sm:loc", ".//", NS)
             if loc:
-                parse_sitemap(loc.strip(), seen_xml, emit)
+                parse_sitemap(loc.strip(), seen_xml, emit, cert_file=cert_file)
     elif tag == "urlset":
         for url_entry in root.findall("sm:url", NS):
             loc = url_entry.findtext("sm:loc")
@@ -53,11 +57,19 @@ def parse_sitemap(url: str, seen_xml: Set[str], emit: Set[str]) -> None:
                 continue
             loc = loc.strip()
             if is_xml_link(loc):
-                parse_sitemap(loc, seen_xml, emit)
+                parse_sitemap(loc, seen_xml, emit, cert_file=cert_file)
             else:
                 emit.add(loc)
     else:
         raise ValueError(f"Unsupported sitemap root tag: {root.tag}")
+
+
+def collect_urls(root_sitemap: str, cert_file: str | None = None) -> Set[str]:
+    """Return every (non-XML) URL mentioned inside the sitemap hierarchy."""
+    seen_xml: Set[str] = set()
+    collected: Set[str] = set()
+    parse_sitemap(root_sitemap, seen_xml, collected, cert_file=cert_file)
+    return collected
 
 
 def write_csv(urls: Iterable[str], path: str) -> None:
@@ -78,16 +90,19 @@ def parse_args() -> argparse.Namespace:
         default="sitemap_urls.csv",
         help="Path to write CSV output (defaults to sitemap_urls.csv).",
     )
+    parser.add_argument(
+        "--cert-file",
+        default=None,
+        help="Optional CA bundle (defaults to system certificates).",
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    collected: Set[str] = set()
-    seen_xml: Set[str] = set()
 
     try:
-        parse_sitemap(args.sitemap, seen_xml, collected)
+        collected = collect_urls(args.sitemap, cert_file=args.cert_file)
     except Exception as err:  # pragma: no cover
         print(f"Failed to parse sitemap: {err}", file=sys.stderr)
         sys.exit(1)
